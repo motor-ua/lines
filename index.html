@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Lines</title>
+        <style type="text/css">
+            html {
+                background-color: black;
+            }
+            #canvas {
+                background-color: black;
+                position: absolute;
+                top: 0;
+                left: 0;
+            }
+            #menu {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 200px;
+                height: 150px;
+                background-color: white;
+                opacity: 0.5;
+                z-index: 100000;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas" hidden="hidden"></canvas>
+        <script type="text/javascript">
+            (function() {
+                var GAME_FIELD_SIZE = 9;
+
+                var MAX_FIELD_SIZE = 720;
+
+                var BALL_TYPE_RED = 'BALL_TYPE_RED';
+                var BALL_TYPE_GREEN = 'BALL_TYPE_GREEN';
+                var BALL_TYPE_YELLOW = 'BALL_TYPE_YELLOW';
+
+                var ballTypes = [
+                    BALL_TYPE_RED,
+                    BALL_TYPE_GREEN,
+                    BALL_TYPE_YELLOW
+                ];
+
+                var canvas = document.getElementById('canvas');
+                var context = canvas.getContext('2d');
+
+                var objects = [];
+
+                var fieldBgImage;
+                var fieldSelectedImage;
+                var redBall;
+                var yellowBall;
+                var greenBall;
+
+                var init = true;
+
+                var selectedObject = false;
+                var selectedObjectIndexes = [];
+
+                var preloadImage = function() {
+                    fieldBgImage = new Image();
+                    fieldBgImage.src = 'img/bg_field.png';
+
+                    redBall = new Image();
+                    redBall.src = 'img/ball_red.png';
+
+                    yellowBall = new Image();
+                    yellowBall.src = 'img/ball_yellow.png';
+
+                    greenBall = new Image();
+                    greenBall.src = 'img/ball_green.png';
+
+                    fieldSelectedImage = new Image();
+                    fieldSelectedImage.src = 'img/sd_field.png';
+                }
+
+                preloadImage();
+
+                function Object(x, y, width, height, ball, selected) {
+                    this.x = x;
+                    this.y = y;
+                    this.width = width;
+                    this.height = height;
+                    this.img = fieldBgImage;
+                    this.ball = ball;
+                    this.selected = selected;
+                    this.draw = function() {
+                        context.drawImage(this.img, this.x, this.y, this.width, this.height);
+                        if (this.selected) {
+                            context.drawImage(fieldSelectedImage, this.x, this.y, this.width, this.height);
+                        }
+                        if (this.ball) {
+                            context.drawImage(this.ball.img, this.x, this.y, this.width, this.height);
+                        }
+                    }
+                }
+
+                function Ball(type) {
+                    this.type = type;
+                    switch (type) {
+                        case BALL_TYPE_RED:
+                            this.img = redBall;
+                        break;
+                        case BALL_TYPE_YELLOW:
+                            this.img = yellowBall;
+                        break;
+                        case BALL_TYPE_GREEN:
+                            this.img = greenBall;
+                        break;
+                        default:
+                            this.img = redBall;
+                        break;
+                    }
+                }
+
+                var getBall = function(type) {
+                    return new Ball(type);
+                }
+
+                var screenResize = function() {
+                    canvas.setAttribute('width', window.innerWidth + 'px');
+                    canvas.setAttribute('height', window.innerHeight + 'px');
+                }
+
+                var refreshScreen = function() {
+                    screenResize();
+                    calculate();
+                    drawObjects();
+                }
+
+                var drawObjects = function() {
+                    for (var j = 0; j < objects.length; j++) {
+                        for (var i = 0; i < objects[j].length; i++) {
+                            objects[j][i].draw();
+                        }
+                    }
+                }
+
+                var calculate = function() {
+                    var currentClientSize;
+                    if (canvas.clientWidth <= canvas.clientHeight) {
+                        currentClientSize = canvas.clientWidth;
+                    } else {
+                        currentClientSize = canvas.clientHeight;
+                    }
+
+                    var size = Math.floor(currentClientSize / GAME_FIELD_SIZE);
+
+                    if ((size * GAME_FIELD_SIZE) > MAX_FIELD_SIZE) {
+                        size = Math.floor(MAX_FIELD_SIZE / GAME_FIELD_SIZE);
+                    }
+
+                    var left = Math.floor((canvas.clientWidth - (size * GAME_FIELD_SIZE)) / 2);
+                    var top = Math.floor((canvas.clientHeight - (size * GAME_FIELD_SIZE)) / 2);
+
+                    if (objects.length > 0) {
+                        var tmpObjects = [];
+                        for (var j = 0; j < GAME_FIELD_SIZE; j++) {
+                            tmpObjects[j] = [];
+                            for (var i = 0; i < GAME_FIELD_SIZE; i++) {
+                                tmpObjects[j].push(new Object(
+                                    i * size + left, j * size + top, size, size, objects[j][i].ball, objects[j][i].selected
+                                ));
+                            }
+                        }
+                        objects = tmpObjects;
+                        tmpObjects = null;
+                    } else {
+                        for (var j = 0; j < GAME_FIELD_SIZE; j++) {
+                            objects[j] = [];
+                            for (var i = 0; i < GAME_FIELD_SIZE; i++) {
+                                objects[j].push(new Object(
+                                    i * size + left, j * size + top, size, size, false
+                                ));
+                            }
+                        }
+                    }
+
+                    if (init) {
+                        initNextBalls(5);
+                    }
+
+                    init = false;
+                }
+
+                var initNextBalls = function(number) {
+                    if (number > 0) {
+                        for (var i = 0; i < number; i++) {
+                            var currentRandomObjectIndexes = getRandomObjectIndexes();
+
+                            if (currentRandomObjectIndexes) {
+                                objects[currentRandomObjectIndexes[0]][currentRandomObjectIndexes[1]].ball = getBall(ballTypes[Math.floor((Math.random() * ballTypes.length))]);
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                var getRandomObjectIndexes = function() {
+                    var allNoBallObjectIndexes = [];
+
+                    for (var j = 0; j < objects.length; j++) {
+                        for (var i = 0; i < objects[j].length; i++) {
+                            if (! objects[j][i].ball) {
+                                allNoBallObjectIndexes.push([j, i]);
+                            }
+                        }
+                    }
+
+                    if (allNoBallObjectIndexes.length > 0) {
+                        return allNoBallObjectIndexes[Math.floor((Math.random() * allNoBallObjectIndexes.length))];
+                    } else {
+                        window.removeEventListener('mousedown', makeStep, false);
+                        return false;
+                    }
+                }
+
+                var makeStep = function(event) {
+                    var x = event.clientX;
+                    var y = event.clientY;
+                    for (var j = 0; j < objects.length; j++) {
+                        for (var i = 0; i < objects[j].length; i++) {
+                            if (x > objects[j][i].x && x < objects[j][i].x + objects[j][i].width && y > objects[j][i].y && y < objects[j][i].y + objects[j][i].height) {
+                                if (objects[j][i].ball) {
+                                    if (selectedObject) {
+                                        objects[selectedObjectIndexes[0]][selectedObjectIndexes[1]].selected = false;
+                                    }
+                                    objects[j][i].selected = true;
+                                    selectedObjectIndexes = [j, i];
+                                    selectedObject = true;
+                                    refreshScreen();
+                                } else {
+                                    if (selectedObject) {
+                                        if (checkStep(j, i, true)) {
+                                            objects[j][i].ball = objects[selectedObjectIndexes[0]][selectedObjectIndexes[1]].ball;
+                                            objects[selectedObjectIndexes[0]][selectedObjectIndexes[1]].selected = false;
+                                            objects[selectedObjectIndexes[0]][selectedObjectIndexes[1]].ball = null;
+                                            selectedObjectIndexes = [j, i];
+                                            selectedObject = false;
+                                            if (! isClearing(j, i)) {
+                                                initNextBalls(3);
+                                            }
+                                            refreshScreen();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                var checkStep = function(j, i, init) {
+                    return true;
+                }
+
+                var isClearing = function(j, i) {
+
+                }
+
+                window.addEventListener('resize', refreshScreen, false);
+
+                window.addEventListener('mousedown', makeStep, false);
+
+                window.addEventListener('load', function load(event) {
+                    window.removeEventListener('load', load, false);
+                    canvas.removeAttribute('hidden');
+                    refreshScreen();
+                }, false);
+            })();
+        </script>
+    </body>
+</html>
+
